@@ -10,8 +10,10 @@ class ArgumentParser:
 
     def create_parser(self):
         """Create and configure the argument parser"""
-        if self.type == 'client':
+        if self.type == 'upload':
             usage = '%(prog)s [-h] [-v | -q] [-H ADDR] [-p PORT] [-s FILEPATH] [-n FILENAME] [-r protocol]'
+        elif self.type == 'download':
+            usage = '%(prog)s [-h] [-v | -q] [-H ADDR] [-p PORT] [-d FILEPATH] [-n FILENAME] [-r protocol]'
         elif self.type == 'server':
             usage = '%(prog)s [-h] [-v | -q] [-H ADDR] [-p PORT] [-s DIRPATH] [-r protocol]'
 
@@ -36,10 +38,10 @@ class ArgumentParser:
         self.parser.add_argument('-p', '--port', metavar='', type=int, default=8080,
                         help='server port')
         
-        if self.type == 'client':
-            self.add_client_arguments()
-        elif self.type == 'server':
+        if self.type == 'server':
             self.add_server_arguments()
+        else:
+            self.add_client_arguments()
 
         # Error Recovery Protocol option
         self.parser.add_argument('-r', '--protocol', metavar='',
@@ -48,8 +50,13 @@ class ArgumentParser:
     def add_client_arguments(self):
         """Add client-specific arguments"""
         # File options
-        self.parser.add_argument('-s', '--src', metavar='',
-                        help='source file path')
+        if self.type == 'upload':
+            self.parser.add_argument('-s', '--src', metavar='',
+                            help='source file path')
+        else:
+            self.parser.add_argument('-d', '--dst', metavar='',
+                            help='destination file path')
+            
         self.parser.add_argument('-n', '--name', metavar='',
                         help='file name')
         
