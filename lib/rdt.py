@@ -1,10 +1,14 @@
 from enum import Enum
+from socket import *
 
 TYPE_SIZE = 1
 SEQ_NUMBER_SIZE = 2
 PAYLOAD_SIZE = 4096
 HEADER_SIZE = TYPE_SIZE + SEQ_NUMBER_SIZE
 PACKET_SIZE = TYPE_SIZE + SEQ_NUMBER_SIZE + PAYLOAD_SIZE
+
+SENDER_TIMEOUT_SW = 1.0
+RECEIVER_TIMEOUT_SW = 1.0
 
 
 class Type(Enum):
@@ -66,6 +70,50 @@ def establish_connection(
     return response_type, server_address
 
 
+def send_data(seq_number, socket, address, data):
+    print(f"Sent packet #{seq_number}")
+    data_packet = (
+        Type.DATA.value.to_bytes(TYPE_SIZE, "big")
+        + seq_number.to_bytes(SEQ_NUMBER_SIZE, "big")
+        + data
+    )
+    socket.sendto(data_packet, address)
+
+
+def receive_ack(socket):
+    response_from_receiver, _ = socket.recvfrom(PACKET_SIZE)
+    return get_header(response_from_receiver)
+
+
+def received_expected_ack(received_type, received_seq_number, expected_seq_number):
+    if received_type == Type.ACK and received_seq_number == expected_seq_number:
+        print(f"Received expected ACK #{received_seq_number}")
+        return True
+    print(
+        f"Received unexpected ACK #{received_seq_number}, resending previous packet #{expected_seq_number}"
+    )
+    return False
+
+
+def received_expected_data(received_type, received_seq_number, expected_seq_number):
+    if received_type == Type.DATA:
+        if received_seq_number == expected_seq_number:
+            print(f"Received packet #{received_seq_number} correctly")
+            return True
+        print(
+            f"Received packet #{received_seq_number} but expected #{expected_seq_number}"
+        )
+    return False
+
+
+def send_close(seq_number, socket, address):
+    print("Sent CLOSE packet")
+    close_packet = Type.CLOSE.value.to_bytes(TYPE_SIZE, "big") + seq_number.to_bytes(
+        SEQ_NUMBER_SIZE, "big"
+    )
+    socket.sendto(close_packet, address)
+
+
 def recv_file_sw(udp_socket, filepath):
     response_type = Type.ACK
     packet_counter = 0
@@ -78,24 +126,16 @@ def recv_file_sw(udp_socket, filepath):
         response_type, response_seq_number = get_header(response_from_server)
 
         # Si lo que llego es tipo DATA y su secuencia es igual a counter:
-        if response_type == Type.DATA:
-            if response_seq_number == packet_counter:
-                print(f"Received packet #{response_seq_number} correctly")
-                # Es el que esperabamos y lo escribimos a archivo
-                # mandamos ACK de su numero de secuencia
-                # y aumentamos counter
-                payload = get_payload(response_from_server)
-                file.write(payload)
-                file.flush()
-                send_ack(packet_counter, udp_socket, server_address)
-                packet_counter += 1
-
-            else:
-                # reenviamos ACK de nuestro counter
-                print(
-                    f"Received packet #{response_seq_number} but expected {packet_counter}"
-                )
-                send_ack(packet_counter, udp_socket, server_address)
+        if received_expected_data(response_type, response_seq_number, packet_counter):
+            # Es el que esperabamos y lo escribimos a archivo, mandamos ACK de su numero de secuencia y aumentamos counter
+            payload = get_payload(response_from_server)
+            file.write(payload)
+            file.flush()
+            send_ack(packet_counter, udp_socket, server_address)
+            packet_counter += 1
+        else:
+            # Reenviamos ACK de nuestro counter
+            send_ack(packet_counter, udp_socket, server_address)
 
     print(f"Received CLOSE packet")
     file.close()
@@ -108,35 +148,25 @@ def send_file_sw(udp_socket, filepath, receiver_address):
 
     # Mientras el tipo no sea CLOSE
     while data_read:
-        print(f"Sent packet #{packet_counter}")
-        data_packet = (
-            Type.DATA.value.to_bytes(TYPE_SIZE, "big")
-            + packet_counter.to_bytes(SEQ_NUMBER_SIZE, "big")
-            + data_read
-        )
-        udp_socket.sendto(data_packet, receiver_address)
+        send_data(packet_counter, udp_socket, receiver_address, data_read)
 
         # Leo del socket:
-        response_from_receiver, receiver_address = udp_socket.recvfrom(PACKET_SIZE)
-        response_type, response_seq_number = get_header(response_from_receiver)
+        try:
+            response_type, response_seq_number = receive_ack(udp_socket)
 
-        # Si lo que llego es tipo ACK:
-        if response_type == Type.ACK:
-            # Si es ACK que esperabamos, enviamos el siguiente
-            if response_seq_number == packet_counter:
-                print(f"Received expected ACK #{response_seq_number}")
+            # Si lo que llego es tipo ACK es ACK que esperabamos, enviamos el siguiente:
+            if received_expected_ack(
+                response_type, response_seq_number, packet_counter
+            ):
                 data_read = file.read(PAYLOAD_SIZE)
                 packet_counter += 1
-            else:
-                print(
-                    f"Received unexpected ACK #{response_seq_number}, resending previous packet #{packet_counter}"
-                )
 
-    print("Sent CLOSE packet")
-    close_packet = Type.CLOSE.value.to_bytes(
-        TYPE_SIZE, "big"
-    ) + packet_counter.to_bytes(SEQ_NUMBER_SIZE, "big")
-    udp_socket.sendto(close_packet, receiver_address)
+        except timeout:
+            print(
+                f"Wait for ACK #{packet_counter} timed out, resending previous packet #{packet_counter}"
+            )
+
+    send_close(packet_counter, udp_socket, receiver_address)
     file.close()
 
 
