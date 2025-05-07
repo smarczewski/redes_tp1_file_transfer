@@ -17,6 +17,7 @@ if response_type == Type.ACK:
     if args.protocol:
         # recv_file_sr(udp_socket, args.name)
         pass
+    # udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
     recv_file_sw(udp_socket, args.dst + "/" + args.name)
 
 if response_type == Type.ERROR:
