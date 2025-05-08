@@ -15,6 +15,7 @@ response_type, _ = establish_connection(
 if response_type == Type.ACK:
     # Server nos devolvió el ACK, y podemos continuar normalmente
     if args.protocol:
+        udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
         recv_file_sr(udp_socket, args.dst + "/" + args.name)
     else:
         udp_socket.settimeout(RECEIVER_TIMEOUT_SW)

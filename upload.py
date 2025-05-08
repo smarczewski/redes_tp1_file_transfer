@@ -14,11 +14,20 @@ response_type, receiver_address = establish_connection(
 
 if response_type == Type.ACK:
     # Server nos devolvió el ACK, y podemos continuar normalmente
+    start_time = time.time()
     if args.protocol:
-        send_file_sr(udp_socket, args.src + "/" + args.name, receiver_address)
+        udp_socket.settimeout(SENDER_TIMEOUT_SR)
+        send_file_sr(
+            udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
+        )
     else:
         udp_socket.settimeout(SENDER_TIMEOUT_SW)
-        send_file_sw(udp_socket, args.src + "/" + args.name, receiver_address)
+        send_file_sw(
+            udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
+        )
+
+    end_time = time.time()
+    print(f"TIME: {end_time - start_time}")
 
 if response_type == Type.ERROR:
     # Hubo algún error
