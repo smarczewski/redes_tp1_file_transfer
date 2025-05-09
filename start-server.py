@@ -1,5 +1,5 @@
 from lib.argument_parser import *
-from lib.rdt import *
+from lib.rdt_shared import *
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from socket import *
@@ -61,6 +61,11 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
 
 argsparser = ArgumentParser(ParserType.SERVER)
 args = get_args(argsparser, ParserType.SERVER)
+
+if args.protocol:
+    from lib.rdt_sr import recv_file_sr, send_file_sr
+else:
+    from lib.rdt_sw import recv_file_sw, send_file_sw
 
 udp_sv_socket = socket(AF_INET, SOCK_DGRAM)
 udp_sv_socket.bind((args.host, args.port))

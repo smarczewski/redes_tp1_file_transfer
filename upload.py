@@ -1,11 +1,16 @@
 from lib.argument_parser import *
 from pathlib import Path
 from socket import *
-from lib.rdt import *
-import ipaddress
+from lib.rdt_shared import *
+import time
 
 argsparser = ArgumentParser(ParserType.UPLOAD)
 args = get_args(argsparser, ParserType.UPLOAD)
+
+if args.protocol:
+    from lib.rdt_sr import send_file_sr
+else:
+    from lib.rdt_sw import send_file_sw
 
 udp_socket = socket(AF_INET, SOCK_DGRAM)
 udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
