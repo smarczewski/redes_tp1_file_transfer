@@ -7,17 +7,42 @@ from socket import *
 N_THREADS = 10
 
 
+def initial_server_response(request_type, filepath, seq_number):
+    error_packet = Type.ERROR.value.to_bytes(TYPE_SIZE, "big") + seq_number.to_bytes(
+        SEQ_NUMBER_SIZE, "big"
+    )
+    if request_type == Type.DOWNLOAD:
+        if not Path(filepath).exists():
+            error_msg = f"The server storage doesn't contain the file: {filename}"
+            return error_packet + error_msg.encode()
+    elif request_type == Type.UPLOAD:
+        if Path(filepath).exists():
+            error_msg = f"The server storage already contains a file named: {filename}"
+            return error_packet + error_msg.encode()
+    ack_packet = Type.ACK.value.to_bytes(TYPE_SIZE, "big") + seq_number.to_bytes(
+        SEQ_NUMBER_SIZE, "big"
+    )
+    return ack_packet
+
+
 def handle_connection(filepath, request_type, request_seq_number, client_address):
     new_udp_socket = socket(AF_INET, SOCK_DGRAM)
     new_udp_socket.bind((args.host, 0))
 
-    send_ack(request_seq_number, new_udp_socket, client_address)
+    packet_to_send = initial_server_response(request_type, filepath, request_seq_number)
+
+    client_response = recv_handshake(
+        new_udp_socket, request_type, client_address, packet_to_send
+    )
+
+    if client_response != Type.ACK:
+        new_udp_socket.close()
+        return
 
     if request_type == Type.DOWNLOAD:
         if args.protocol:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
             send_file_sr(new_udp_socket, filepath, client_address)
-            pass
         else:
             new_udp_socket.settimeout(SENDER_TIMEOUT_SW)
             send_file_sw(new_udp_socket, filepath, client_address)
@@ -26,7 +51,6 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
         if args.protocol:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
             recv_file_sr(new_udp_socket, filepath)
-            pass
         else:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
             recv_file_sw(new_udp_socket, filepath)
@@ -47,17 +71,6 @@ with ThreadPoolExecutor(max_workers=N_THREADS) as pool:
         request_type, request_seq_number = get_header(request_from_client)
         filename = get_payload(request_from_client).decode()
         filepath = args.storage + "/" + filename
-
-        if request_type == Type.DOWNLOAD:
-            if not Path(filepath).exists():
-                error_msg = f"The server storage doesn't contain the file: {filename}"
-                send_error(request_seq_number, udp_sv_socket, client_address, error_msg)
-        elif request_type == Type.UPLOAD:
-            if Path(filepath).exists():
-                error_msg = (
-                    f"The server storage already contains a file named: {filename}"
-                )
-                send_error(request_seq_number, udp_sv_socket, client_address, error_msg)
 
         pool.submit(
             handle_connection,

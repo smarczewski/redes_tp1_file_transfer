@@ -8,7 +8,9 @@ argsparser = ArgumentParser(ParserType.UPLOAD)
 args = get_args(argsparser, ParserType.UPLOAD)
 
 udp_socket = socket(AF_INET, SOCK_DGRAM)
-response_type, receiver_address = establish_connection(
+udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
+
+response_type, receiver_address = send_handshake(
     udp_socket, Type.UPLOAD, (args.host, args.port), args.name
 )
 
@@ -17,14 +19,9 @@ if response_type == Type.ACK:
     start_time = time.time()
     if args.protocol:
         udp_socket.settimeout(SENDER_TIMEOUT_SR)
-        send_file_sr(
-            udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
-        )
+        send_file_sr(udp_socket, args.src + "/" + args.name, receiver_address)
     else:
-        udp_socket.settimeout(SENDER_TIMEOUT_SW)
-        send_file_sw(
-            udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
-        )
+        send_file_sw(udp_socket, args.src + "/" + args.name, receiver_address)
 
     end_time = time.time()
     print(f"TIME: {end_time - start_time}")

@@ -7,19 +7,24 @@ import ipaddress
 argsparser = ArgumentParser(ParserType.DOWNLOAD)
 args = get_args(argsparser, ParserType.DOWNLOAD)
 
+
 udp_socket = socket(AF_INET, SOCK_DGRAM)
-response_type, _ = establish_connection(
+udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
+response_type, _ = send_handshake(
     udp_socket, Type.DOWNLOAD, (args.host, args.port), args.name
 )
 
 if response_type == Type.ACK:
     # Server nos devolvió el ACK, y podemos continuar normalmente
+    start_time = time.time()
     if args.protocol:
         udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
         recv_file_sr(udp_socket, args.dst + "/" + args.name)
     else:
-        udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
         recv_file_sw(udp_socket, args.dst + "/" + args.name)
+
+    end_time = time.time()
+    print(f"TIME: {end_time - start_time}")
 
 if response_type == Type.ERROR:
     # Hubo algún error
