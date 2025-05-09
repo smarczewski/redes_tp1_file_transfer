@@ -5,7 +5,7 @@ from lib.rdt_shared import *
 import time
 
 argsparser = ArgumentParser(ParserType.UPLOAD)
-args = get_args(argsparser, ParserType.UPLOAD)
+args = argsparser.get_args(ParserType.UPLOAD)
 
 if args.protocol:
     from lib.rdt_sr import send_file_sr

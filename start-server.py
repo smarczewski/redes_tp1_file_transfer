@@ -61,7 +61,7 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
 
 
 argsparser = ArgumentParser(ParserType.SERVER)
-args = get_args(argsparser, ParserType.SERVER)
+args = argsparser.get_args(ParserType.SERVER)
 
 if args.protocol:
     from lib.rdt_sr import recv_file_sr, send_file_sr

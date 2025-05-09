@@ -93,41 +93,42 @@ class ArgumentParser:
         # Server-specific options can be added here
         self.parser.add_argument("-s", "--storage", metavar="", help="storage dir path")
 
+    def get_args(self, app):
 
-# Recheck
-def get_args(argparser, app):
+        if not is_valid_ip_address(self.args.host):
+            self.parser.exit(1, message="ERROR: The IP address is not valid\n")
 
-    if not is_valid_ip_address(argparser.args.host):
-        argparser.exit(1, message="ERROR: The IP address is not valid\n")
+        if not is_valid_port(self.args.port):
+            self.parser.exit(1, message="ERROR: The port is not valid\n")
 
-    if not is_valid_port(argparser.args.port):
-        argparser.exit(1, message="ERROR: The port is not valid\n")
+        if app == ParserType.SERVER:
+            if not Path(self.args.storage).exists():
+                self.parser.exit(
+                    1, message="ERROR: The storage directory path doesn't exist\n"
+                )
 
-    if app == ParserType.SERVER:
-        if not Path(argparser.args.storage).exists():
-            argparser.exit(
-                1, message="ERROR: The storage directory path doesn't exist\n"
-            )
+        elif app == ParserType.UPLOAD:
+            if not Path(self.args.src).exists():
+                self.parser.exit(
+                    1, message="ERROR: The source file path doesn't exist\n"
+                )
+            if not Path(self.args.src + "/" + self.args.name).exists():
+                self.parser.exit(
+                    1, message=f"ERROR: The file {self.args.name} doesn't exist\n"
+                )
 
-    elif app == ParserType.UPLOAD:
-        if not Path(argparser.args.src).exists():
-            argparser.exit(1, message="ERROR: The source file path doesn't exist\n")
-        if not Path(argparser.args.src + "/" + argparser.args.name).exists():
-            argparser.exit(
-                1, message=f"ERROR: The file {argparser.args.name} doesn't exist\n"
-            )
+        else:
+            if not Path(self.args.dst).exists():
+                self.parser.exit(
+                    1, message="ERROR: The destination file path doesn't exist\n"
+                )
+            if Path(self.args.dst + "/" + self.args.name).exists():
+                self.parser.exit(
+                    1,
+                    message=f"ERROR: A file named {self.args.name} already exists\n",
+                )
 
-    else:
-        if not Path(argparser.args.dst).exists():
-            argparser.exit(
-                1, message="ERROR: The destination file path doesn't exist\n"
-            )
-        if Path(argparser.args.dst + "/" + argparser.args.name).exists():
-            argparser.exit(
-                1, message=f"ERROR: A file named {argparser.args.name} already exists\n"
-            )
-
-    return argparser.args
+        return self.args
 
 
 def is_valid_ip_address(address):

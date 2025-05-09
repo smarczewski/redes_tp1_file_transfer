@@ -5,7 +5,7 @@ from lib.rdt_shared import *
 import time
 
 argsparser = ArgumentParser(ParserType.DOWNLOAD)
-args = get_args(argsparser, ParserType.DOWNLOAD)
+args = argsparser.get_args(ParserType.DOWNLOAD)
 
 if args.protocol:
     from lib.rdt_sr import recv_file_sr
