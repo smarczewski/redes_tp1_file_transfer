@@ -9,9 +9,9 @@ def received_ack_is_within_window(received_type, received_seq_number, base):
     return False
 
 
-def advance_windows(acked_window: list[bool], buffer_window, timer_window):
+def advance_windows(acked_window: list[bool], buffer_window, timer_window, verbose):
     pos = 0
-    print("Advancing buffered packets window...")
+    verbose_print("Advancing buffered packets window...", verbose)
 
     while len(acked_window) > 0 and acked_window[0] == True:
         acked_window.pop(0)
@@ -24,14 +24,14 @@ def advance_windows(acked_window: list[bool], buffer_window, timer_window):
     return pos
 
 
-def advance_recved_window(recved_window: list[bool], buffer_window, file):
+def advance_recved_window(recved_window: list[bool], buffer_window, file, verbose):
     pos = 0
-    print("Avancing buffered packets received window...")
+    verbose_print("Avancing buffered packets received window...", verbose)
 
     while len(recved_window) > 0 and recved_window[0] == True:
         recved_window.pop(0)
         buffered_data = buffer_window.pop(0)
-        print(f"Writing to file buffered packet #{buffered_data[0]}")
+        verbose_print(f"Writing to file buffered packet #{buffered_data[0]}", verbose)
         file.write(buffered_data[1])
         file.flush()
         pos += 1
@@ -43,9 +43,9 @@ def advance_recved_window(recved_window: list[bool], buffer_window, file):
 
 
 def check_for_timeouts_and_resend(
-    acked_window, buffer_window, timer_window, socket, address
+    acked_window, buffer_window, timer_window, socket, address, verbose
 ):
-    print(f"Checking for timeouts for sent packets...")
+    verbose_print(f"Checking for timeouts for sent packets...", verbose)
 
     pos = 0
     for acked in acked_window:
@@ -57,11 +57,12 @@ def check_for_timeouts_and_resend(
                     socket,
                     address,
                     buffer_window[pos][1],
+                    verbose,
                 )
             pos += 1
 
 
-def send_file_sr(udp_socket, filepath, receiver_address):
+def send_file_sr(udp_socket, filepath, receiver_address, verbose):
     base = 0
     packet_counter = 0
     acked_window = [False] * WINDOW_SIZE
@@ -76,7 +77,7 @@ def send_file_sr(udp_socket, filepath, receiver_address):
     ):  # Falta ver bien esta condicion para el caso en que leimos todo el archivo y queden aun unACKed en la window
         if packet_counter < base + WINDOW_SIZE and data_read:
             # packet gets sent
-            send_data(packet_counter, udp_socket, receiver_address, data_read)
+            send_data(packet_counter, udp_socket, receiver_address, data_read, verbose)
             # guardo data en buffer window
             # guardo timer en timer_window
             buffer_window.append((packet_counter, data_read))
@@ -92,14 +93,16 @@ def send_file_sr(udp_socket, filepath, receiver_address):
                 if received_ack_is_within_window(
                     response_type, response_seq_number, base
                 ):
-                    print(f"Received expected ACK #{response_seq_number}")
+                    verbose_print(
+                        f"Received expected ACK #{response_seq_number}", verbose
+                    )
                     acked_window[response_seq_number - base] = True
 
                     # si era el unACKED mas chico
                     if response_seq_number == base:
                         # se avanza la window hasta el siguiente unACKED mas chico
                         base += advance_windows(
-                            acked_window, buffer_window, timer_window
+                            acked_window, buffer_window, timer_window, verbose
                         )
 
             except timeout:
@@ -110,13 +113,14 @@ def send_file_sr(udp_socket, filepath, receiver_address):
                     timer_window,
                     udp_socket,
                     receiver_address,
+                    verbose,
                 )
 
-    send_close(packet_counter, udp_socket, receiver_address)
+    send_close(packet_counter, udp_socket, receiver_address, verbose)
     file.close()
 
 
-def recv_file_sr(udp_socket, filepath):
+def recv_file_sr(udp_socket, filepath, verbose):
     response_type = Type.ACK
     base = 0
     recved_window = [False] * WINDOW_SIZE
@@ -133,15 +137,17 @@ def recv_file_sr(udp_socket, filepath):
             continue
 
         if response_type != Type.DATA:
-            print(f"Received unexpected non DATA packet")
+            verbose_print(f"Received unexpected non DATA packet", verbose)
             continue
 
         # If a packet n is received and its within the window:
         if base <= response_seq_number < base + WINDOW_SIZE:
-            send_ack(response_seq_number, udp_socket, server_address)
+            send_ack(response_seq_number, udp_socket, server_address, verbose)
             if response_seq_number == base:
                 # Es el que esperabamos y lo escribimos a archivo, mandamos ACK de su numero de secuencia y aumentamos counter
-                print(f"Received packet #{response_seq_number} in-order")
+                verbose_print(
+                    f"Received packet #{response_seq_number} in-order", verbose
+                )
                 recved_window[0] = True
                 payload = get_payload(response_from_server)
                 buffer_window[response_seq_number - base] = (
@@ -149,20 +155,26 @@ def recv_file_sr(udp_socket, filepath):
                     payload,
                 )
 
-                base += advance_recved_window(recved_window, buffer_window, file)
+                base += advance_recved_window(
+                    recved_window, buffer_window, file, verbose
+                )
             else:
-                print(f"Received packet #{response_seq_number} out-of-order")
+                verbose_print(
+                    f"Received packet #{response_seq_number} out-of-order", verbose
+                )
                 recved_window[response_seq_number - base] = True
                 payload = get_payload(response_from_server)
                 buffer_window[response_seq_number - base] = (
                     response_seq_number,
                     payload,
                 )
-            print(f"Sent ACK #{response_seq_number}")
+            verbose_print(f"Sent ACK #{response_seq_number}", verbose)
         elif response_seq_number < base:
             # Reenviamos ACK del paquete que llego
-            print(f"Received packet #{response_seq_number} left-of-window")
-            send_ack(response_seq_number, udp_socket, server_address)
+            verbose_print(
+                f"Received packet #{response_seq_number} left-of-window", verbose
+            )
+            send_ack(response_seq_number, udp_socket, server_address, verbose)
 
-    print(f"Received CLOSE packet")
+    verbose_print(f"Received CLOSE packet", verbose)
     file.close()

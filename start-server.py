@@ -28,11 +28,12 @@ def initial_server_response(request_type, filepath, seq_number):
 def handle_connection(filepath, request_type, request_seq_number, client_address):
     new_udp_socket = socket(AF_INET, SOCK_DGRAM)
     new_udp_socket.bind((args.host, 0))
+    new_udp_socket.settimeout(HANDSHAKE_TIMEOUT)
 
     packet_to_send = initial_server_response(request_type, filepath, request_seq_number)
 
     client_response = recv_handshake(
-        new_udp_socket, request_type, client_address, packet_to_send
+        new_udp_socket, request_type, client_address, packet_to_send, args.verbose
     )
 
     # Si recv_handshake nos devuelve algo distinto a ACK, algo salió mal
@@ -43,7 +44,7 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
     if request_type == Type.DOWNLOAD:
         if args.protocol:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
-            send_file_sr(new_udp_socket, filepath, client_address)
+            send_file_sr(new_udp_socket, filepath, client_address, args.verbose)
         else:
             new_udp_socket.settimeout(SENDER_TIMEOUT_SW)
             send_file_sw(new_udp_socket, filepath, client_address, args.verbose)
@@ -51,7 +52,7 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
     elif request_type == Type.UPLOAD:
         if args.protocol:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
-            recv_file_sr(new_udp_socket, filepath)
+            recv_file_sr(new_udp_socket, filepath, args.verbose)
         else:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
             recv_file_sw(new_udp_socket, filepath, args.verbose)

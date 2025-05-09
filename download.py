@@ -15,7 +15,8 @@ else:
 verbose_print(f"Establishing connection to server...", True)
 
 udp_socket = socket(AF_INET, SOCK_DGRAM)
-udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
+udp_socket.settimeout(HANDSHAKE_TIMEOUT)
+
 response_type, _ = send_handshake(
     udp_socket, Type.DOWNLOAD, (args.host, args.port), args.name, args.verbose
 )
@@ -26,8 +27,9 @@ if response_type == Type.ACK:
     if args.protocol:
         udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
         verbose_print(f"Download using SELECTIVE REPEAT started", True)
-        recv_file_sr(udp_socket, args.dst + "/" + args.name)
+        recv_file_sr(udp_socket, args.dst + "/" + args.name, args.verbose)
     else:
+        udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
         verbose_print(f"Download using STOP AND WAIT started", True)
         recv_file_sw(udp_socket, args.dst + "/" + args.name, args.verbose)
 

@@ -14,6 +14,8 @@ RECEIVER_TIMEOUT_SW = 0.03
 SENDER_TIMEOUT_SR = 0.05
 RECEIVER_TIMEOUT_SR = 0.05
 
+HANDSHAKE_TIMEOUT = 0.15
+
 WINDOW_SIZE = 32
 
 
@@ -156,14 +158,14 @@ def send_handshake(
 
 
 def recv_handshake(
-    udp_socket, connection_type: Type, address_to_connect, packet_to_send
+    udp_socket, connection_type: Type, address_to_connect, packet_to_send, verbose
 ):
     packet_to_send_type, _ = get_header(packet_to_send)
 
     # En el caso de UPLOAD enviamos ACK/ERROR
     if connection_type == Type.UPLOAD:
         response_type = receive_connection(
-            packet_to_send, udp_socket, address_to_connect, Type.DATA
+            packet_to_send, udp_socket, address_to_connect, Type.DATA, verbose
         )
 
         # Si el cliente nos devolvio DATA es porque esta todo bien
@@ -181,7 +183,7 @@ def recv_handshake(
     # Si al contrario hay que mandar un ERROR, simplemente lo hacemos y esperamos un ACK
     elif packet_to_send_type == Type.ERROR:
         response_type = receive_connection(
-            packet_to_send, udp_socket, address_to_connect, Type.ACK
+            packet_to_send, udp_socket, address_to_connect, Type.ACK, verbose
         )
 
         if response_type == Type.ACK:
@@ -230,7 +232,9 @@ def establish_connection(
     return Type.ERROR, "server_address"
 
 
-def receive_connection(packet_to_send, udp_socket, address_to_connect, type_to_expect):
+def receive_connection(
+    packet_to_send, udp_socket, address_to_connect, type_to_expect, verbose
+):
     n_tries = 0
     while n_tries < MAX_TRIES:
         n_tries += 1
@@ -248,5 +252,4 @@ def receive_connection(packet_to_send, udp_socket, address_to_connect, type_to_e
         except timeout:
             continue
 
-    print(f"ERROR: Failed to establish connection with the server")
     return Type.ERROR

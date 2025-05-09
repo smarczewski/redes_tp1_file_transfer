@@ -15,7 +15,7 @@ else:
 verbose_print(f"Establishing connection to server...", True)
 
 udp_socket = socket(AF_INET, SOCK_DGRAM)
-udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
+udp_socket.settimeout(HANDSHAKE_TIMEOUT)
 
 response_type, receiver_address = send_handshake(
     udp_socket, Type.UPLOAD, (args.host, args.port), args.name, args.verbose
@@ -27,8 +27,11 @@ if response_type == Type.ACK:
     if args.protocol:
         udp_socket.settimeout(SENDER_TIMEOUT_SR)
         verbose_print(f"Upload using SELECTIVE REPEAT started", True)
-        send_file_sr(udp_socket, args.src + "/" + args.name, receiver_address)
+        send_file_sr(
+            udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
+        )
     else:
+        udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
         verbose_print(f"Upload using STOP AND WAIT started", True)
         send_file_sw(
             udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
