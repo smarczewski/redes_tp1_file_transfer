@@ -46,7 +46,7 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
             send_file_sr(new_udp_socket, filepath, client_address)
         else:
             new_udp_socket.settimeout(SENDER_TIMEOUT_SW)
-            send_file_sw(new_udp_socket, filepath, client_address)
+            send_file_sw(new_udp_socket, filepath, client_address, args.verbose)
 
     elif request_type == Type.UPLOAD:
         if args.protocol:
@@ -54,7 +54,7 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
             recv_file_sr(new_udp_socket, filepath)
         else:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
-            recv_file_sw(new_udp_socket, filepath)
+            recv_file_sw(new_udp_socket, filepath, args.verbose)
 
     new_udp_socket.close()
 

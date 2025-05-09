@@ -1,5 +1,6 @@
 from enum import Enum
 from socket import *
+from datetime import datetime
 
 TYPE_SIZE = 1
 SEQ_NUMBER_SIZE = 2
@@ -28,6 +29,12 @@ class Type(Enum):
     ERROR = 5
 
 
+def verbose_print(msg, verbose):
+    if verbose:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] - {msg}")
+
+
 def get_header(packet):
     type = Type(int.from_bytes(packet[:TYPE_SIZE], "big"))
     seq_number = int.from_bytes(packet[TYPE_SIZE:HEADER_SIZE], "big")
@@ -41,11 +48,11 @@ def get_payload(packet):
     return payload
 
 
-def send_ack(seq_number, socket, address):
+def send_ack(seq_number, socket, address, verbose):
     ack_packet = Type.ACK.value.to_bytes(TYPE_SIZE, "big") + seq_number.to_bytes(
         SEQ_NUMBER_SIZE, "big"
     )
-    print(f"Sent ACK #{seq_number}")
+    verbose_print(f"Sent ACK #{seq_number}", verbose)
     socket.sendto(ack_packet, address)
 
 
@@ -58,8 +65,8 @@ def send_error(seq_number, socket, address, error_msg):
     socket.sendto(error_packet, address)
 
 
-def send_data(seq_number, socket, address, data):
-    print(f"Sent packet #{seq_number}")
+def send_data(seq_number, socket, address, data, verbose):
+    verbose_print(f"Sent packet #{seq_number}", verbose)
     data_packet = (
         Type.DATA.value.to_bytes(TYPE_SIZE, "big")
         + seq_number.to_bytes(SEQ_NUMBER_SIZE, "big")
@@ -68,8 +75,8 @@ def send_data(seq_number, socket, address, data):
     socket.sendto(data_packet, address)
 
 
-def send_close(seq_number, socket, address):
-    print("Sent CLOSE packet")
+def send_close(seq_number, socket, address, verbose):
+    verbose_print("Sent CLOSE packet", verbose)
     close_packet = Type.CLOSE.value.to_bytes(TYPE_SIZE, "big") + seq_number.to_bytes(
         SEQ_NUMBER_SIZE, "big"
     )
@@ -96,31 +103,39 @@ def receive_ack(socket):
     return get_header(response_from_receiver)
 
 
-def received_expected_ack(received_type, received_seq_number, expected_seq_number):
+def received_expected_ack(
+    received_type, received_seq_number, expected_seq_number, verbose
+):
     if received_type == Type.ACK and received_seq_number == expected_seq_number:
-        print(f"Received expected ACK #{received_seq_number}")
+        verbose_print(f"Received expected ACK #{received_seq_number}", verbose)
         return True
-    print(
-        f"Received unexpected ACK #{received_seq_number}, resending previous packet #{expected_seq_number}"
+    verbose_print(
+        f"Received unexpected ACK #{received_seq_number}, resending previous packet #{expected_seq_number}",
+        verbose,
     )
     return False
 
 
-def received_expected_data(received_type, received_seq_number, expected_seq_number):
+def received_expected_data(
+    received_type, received_seq_number, expected_seq_number, verbose
+):
     if received_type == Type.DATA:
         if received_seq_number == expected_seq_number:
-            print(f"Received packet #{received_seq_number} correctly")
+            verbose_print(f"Received packet #{received_seq_number} correctly", verbose)
             return True
-        print(
-            f"Received packet #{received_seq_number} but expected #{expected_seq_number}"
+        verbose_print(
+            f"Received packet #{received_seq_number} but expected #{expected_seq_number}",
+            verbose,
         )
     return False
 
 
-def send_handshake(udp_socket, connection_type: Type, address_to_connect, filename):
+def send_handshake(
+    udp_socket, connection_type: Type, address_to_connect, filename, verbose
+):
     # Intentamos hacerle llegar el paquete DOWNLOAD/UPLOAD al server
     response_type, server_address = establish_connection(
-        udp_socket, connection_type, address_to_connect, filename
+        udp_socket, connection_type, address_to_connect, filename, verbose
     )
 
     # Si el server nos responde con un ACK
@@ -176,7 +191,7 @@ def recv_handshake(
 
 
 def establish_connection(
-    udp_socket, connection_type: Type, address_to_connect, filename
+    udp_socket, connection_type: Type, address_to_connect, filename, verbose
 ):
     initial_seq = 0
     initial_packet = (
@@ -196,7 +211,7 @@ def establish_connection(
             # Si el servidor devuelve ERROR en cualquier caso imprimimos el mismo
             if response_type == Type.ERROR:
                 error_msg = get_payload(response_from_server).decode()
-                print(f"ERROR: {error_msg}")
+                verbose_print(f"ERROR: {error_msg}", verbose)
                 return response_type, server_address
 
             # Si el servidor devuelve ACK y estamos en UPLOAD, significa que esta todo bien
@@ -211,7 +226,7 @@ def establish_connection(
         except timeout:
             continue
 
-    print(f"ERROR: Failed to establish connection with the server")
+    verbose_print(f"ERROR: Failed to establish connection with the server", verbose)
     return Type.ERROR, "server_address"
 
 

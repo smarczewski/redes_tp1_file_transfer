@@ -12,11 +12,13 @@ if args.protocol:
 else:
     from lib.rdt_sw import send_file_sw
 
+verbose_print(f"Establishing connection to server...", True)
+
 udp_socket = socket(AF_INET, SOCK_DGRAM)
 udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
 
 response_type, receiver_address = send_handshake(
-    udp_socket, Type.UPLOAD, (args.host, args.port), args.name
+    udp_socket, Type.UPLOAD, (args.host, args.port), args.name, args.verbose
 )
 
 if response_type == Type.ACK:
@@ -24,12 +26,16 @@ if response_type == Type.ACK:
     start_time = time.time()
     if args.protocol:
         udp_socket.settimeout(SENDER_TIMEOUT_SR)
+        verbose_print(f"Upload using SELECTIVE REPEAT started", True)
         send_file_sr(udp_socket, args.src + "/" + args.name, receiver_address)
     else:
-        send_file_sw(udp_socket, args.src + "/" + args.name, receiver_address)
+        verbose_print(f"Upload using STOP AND WAIT started", True)
+        send_file_sw(
+            udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
+        )
 
     end_time = time.time()
-    print(f"TIME: {end_time - start_time}")
+    verbose_print(f"Upload time: {end_time - start_time}", True)
 
 if response_type == Type.ERROR:
     # Hubo algún error
