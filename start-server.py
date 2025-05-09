@@ -35,6 +35,7 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
         new_udp_socket, request_type, client_address, packet_to_send
     )
 
+    # Si recv_handshake nos devuelve algo distinto a ACK, algo salió mal
     if client_response != Type.ACK:
         new_udp_socket.close()
         return
@@ -67,6 +68,7 @@ udp_sv_socket.bind((args.host, args.port))
 with ThreadPoolExecutor(max_workers=N_THREADS) as pool:
 
     while True:
+        print("Listening for connections...")
         request_from_client, client_address = udp_sv_socket.recvfrom(PACKET_SIZE)
         request_type, request_seq_number = get_header(request_from_client)
         filename = get_payload(request_from_client).decode()

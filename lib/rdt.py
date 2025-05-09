@@ -69,21 +69,25 @@ def send_error(seq_number, socket, address, error_msg):
 
 
 def send_handshake(udp_socket, connection_type: Type, address_to_connect, filename):
+    # Intentamos hacerle llegar el paquete DOWNLOAD/UPLOAD al server
     response_type, server_address = establish_connection(
         udp_socket, connection_type, address_to_connect, filename
     )
 
-    # el server nos dio el primer OK
+    # Si el server nos responde con un ACK
     if response_type == Type.ACK:
-        # en el caso de UPLOAD aca ya puedo enviar mi data y el server ya deberia estar escuchando en ese socket
+        # en el caso de UPLOAD, ya empezamos a enviar DATA
+        # y el server ya deberia estar escuchando en ese socket
         if connection_type == Type.UPLOAD:
             return response_type, server_address
 
+    # Si el server nos responde directamente con DATA
     elif response_type == Type.DATA:
-        # en el caso de DOWNLOAD hago un receive connection más
+        # en el caso de DOWNLOAD significa que salio todo bien y ya estamos recibiendo DATA
         if connection_type == Type.DOWNLOAD:
             return Type.ACK, server_address
     else:
+        # Si el server nos responde con un ERROR
         return Type.ERROR, server_address
 
 
@@ -92,31 +96,30 @@ def recv_handshake(
 ):
     packet_to_send_type, _ = get_header(packet_to_send)
 
-    print(packet_to_send_type)
-
+    # En el caso de UPLOAD enviamos ACK/ERROR
     if connection_type == Type.UPLOAD:
         response_type = receive_connection(
             packet_to_send, udp_socket, address_to_connect, Type.DATA
         )
 
-        # el cliente nos dio el primer OK
+        # Si el cliente nos devolvio DATA es porque esta todo bien
         if response_type == Type.DATA:
-            print("A SUBIR")
             return Type.ACK
 
         return Type.ERROR
 
+    # En el caso de DOWNLOAD, si esta todo bien y no hay que mandar ERROR
+    # empezamos a mandar la data directamente al cliente, lo que implicitamente
+    # le avisa que esta todo bien
     elif packet_to_send_type == Type.ACK:
-        print("A DESCARGAR")
         return Type.ACK
 
+    # Si al contrario hay que mandar un ERROR, simplemente lo hacemos y esperamos un ACK
     elif packet_to_send_type == Type.ERROR:
-        print("OMEGA XD")
         response_type = receive_connection(
             packet_to_send, udp_socket, address_to_connect, Type.ACK
         )
 
-        # el cliente nos dio el primer OK
         if response_type == Type.ACK:
             return Type.ERROR
 
@@ -136,20 +139,22 @@ def establish_connection(
     n_tries = 0
     while n_tries < MAX_TRIES:
         n_tries += 1
-        # time.sleep(0.08)
         try:
             udp_socket.sendto(initial_packet, address_to_connect)
             response_from_server, server_address = udp_socket.recvfrom(PACKET_SIZE)
             response_type, _ = get_header(response_from_server)
 
+            # Si el servidor devuelve ERROR en cualquier caso imprimimos el mismo
             if response_type == Type.ERROR:
                 error_msg = get_payload(response_from_server).decode()
                 print(f"ERROR: {error_msg}")
                 return response_type, server_address
 
+            # Si el servidor devuelve ACK y estamos en UPLOAD, significa que esta todo bien
             if connection_type == Type.UPLOAD and response_type == Type.ACK:
                 return response_type, server_address
 
+            # Si el servidor devuelve DATA y estamos en DOWNLOAD, significa que esta todo bien
             if connection_type == Type.DOWNLOAD and response_type == Type.DATA:
                 return response_type, server_address
 
@@ -165,14 +170,13 @@ def receive_connection(packet_to_send, udp_socket, address_to_connect, type_to_e
     n_tries = 0
     while n_tries < MAX_TRIES:
         n_tries += 1
-        # time.sleep(0.08)
         try:
-            print("receive_connection")
-            # El packet que enviamos puede ser de cualquier tipo
+            # El packet que enviamos va a ser de tipo ACK/ERROR
             udp_socket.sendto(packet_to_send, address_to_connect)
             response_from_server, _ = udp_socket.recvfrom(PACKET_SIZE)
             response_type, _ = get_header(response_from_server)
 
+            # El paquete que vamos a esperar va a ser ACK/DATA dependiendo del caso
             if response_type == type_to_expect:
                 return response_type
 
@@ -182,27 +186,6 @@ def receive_connection(packet_to_send, udp_socket, address_to_connect, type_to_e
 
     print(f"ERROR: Failed to establish connection with the server")
     return Type.ERROR
-
-
-# def establish_connection(
-#     udp_socket, connection_type: Type, address_to_connect, filename
-# ):
-#     initial_seq = 0
-#     initial_packet = (
-#         connection_type.value.to_bytes(TYPE_SIZE, "big")
-#         + initial_seq.to_bytes(SEQ_NUMBER_SIZE, "big")
-#         + filename.encode()
-#     )
-
-#     udp_socket.sendto(initial_packet, address_to_connect)
-#     response_from_server, server_address = udp_socket.recvfrom(PACKET_SIZE)
-
-#     response_type, _ = get_header(response_from_server)
-#     if response_type == Type.ERROR:
-#         error_msg = get_payload(response_from_server).decode()
-#         print(f"ERROR: {error_msg}")
-
-#     return response_type, server_address
 
 
 def send_data(seq_number, socket, address, data):
@@ -246,7 +229,22 @@ def send_close(seq_number, socket, address):
     close_packet = Type.CLOSE.value.to_bytes(TYPE_SIZE, "big") + seq_number.to_bytes(
         SEQ_NUMBER_SIZE, "big"
     )
-    socket.sendto(close_packet, address)
+
+    n_tries = 0
+    while n_tries < MAX_TRIES:
+        n_tries += 1
+        try:
+            socket.sendto(close_packet, address)
+            response_from_server, server_address = socket.recvfrom(PACKET_SIZE)
+            response_type, _ = get_header(response_from_server)
+
+            # Si nos devuelven ACK, recibieron el CLOSE
+            if response_type == Type.ACK:
+                return response_type, server_address
+
+            raise TimeoutError
+        except timeout:
+            continue
 
 
 def recv_file_sw(udp_socket, filepath):
@@ -263,17 +261,17 @@ def recv_file_sw(udp_socket, filepath):
 
             # Si lo que llego es tipo DATA y su secuencia es igual a counter:
             if received_expected_data(
-                response_type, response_seq_number, packet_counter
+                response_type, response_seq_number, packet_counter + 1
             ):
                 # Es el que esperabamos y lo escribimos a archivo, mandamos ACK de su numero de secuencia y aumentamos counter
                 payload = get_payload(response_from_server)
                 file.write(payload)
                 file.flush()
-                send_ack(packet_counter, udp_socket, server_address)
+                send_ack(response_seq_number, udp_socket, server_address)
                 packet_counter += 1
             else:
                 # Reenviamos ACK
-                send_ack(response_seq_number, udp_socket, server_address)
+                send_ack(packet_counter, udp_socket, server_address)
         except timeout:
             continue
 
@@ -282,7 +280,7 @@ def recv_file_sw(udp_socket, filepath):
 
 
 def send_file_sw(udp_socket, filepath, receiver_address):
-    packet_counter = 0
+    packet_counter = 1
     file = open(filepath, "rb")
     data_read = file.read(PAYLOAD_SIZE)
 
@@ -378,7 +376,7 @@ def send_file_sr(udp_socket, filepath, receiver_address):
                 # Leo del socket:
                 response_type, response_seq_number = receive_ack(udp_socket)
 
-                # Si lo que llego es tipo ACK es ACK que esperabamos, enviamos el siguiente:
+                # Si lo que llego es tipo ACK y es ACK que esperabamos, enviamos el siguiente:
                 if received_ack_is_within_window(
                     response_type, response_seq_number, base
                 ):
