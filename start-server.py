@@ -30,7 +30,8 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
     new_udp_socket.bind((args.host, 0))
     new_udp_socket.settimeout(HANDSHAKE_TIMEOUT)
 
-    packet_to_send = initial_server_response(request_type, filepath, request_seq_number)
+    packet_to_send = initial_server_response(
+        request_type, filepath, request_seq_number)
 
     client_response = recv_handshake(
         new_udp_socket, request_type, client_address, packet_to_send, args.verbose
@@ -44,10 +45,12 @@ def handle_connection(filepath, request_type, request_seq_number, client_address
     if request_type == Type.DOWNLOAD:
         if args.protocol:
             new_udp_socket.settimeout(RECEIVER_TIMEOUT_SR)
-            send_file_sr(new_udp_socket, filepath, client_address, args.verbose)
+            send_file_sr(new_udp_socket, filepath,
+                         client_address, args.verbose)
         else:
             new_udp_socket.settimeout(SENDER_TIMEOUT_SW)
-            send_file_sw(new_udp_socket, filepath, client_address, args.verbose)
+            send_file_sw(new_udp_socket, filepath,
+                         client_address, args.verbose)
 
     elif request_type == Type.UPLOAD:
         if args.protocol:
@@ -75,7 +78,8 @@ with ThreadPoolExecutor(max_workers=N_THREADS) as pool:
 
     while True:
         print("Listening for connections...")
-        request_from_client, client_address = udp_sv_socket.recvfrom(PACKET_SIZE)
+        request_from_client, client_address = udp_sv_socket.recvfrom(
+            PACKET_SIZE)
         request_type, request_seq_number = get_header(request_from_client)
         filename = get_payload(request_from_client).decode()
         filepath = args.storage + "/" + filename

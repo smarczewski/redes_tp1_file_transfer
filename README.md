@@ -49,3 +49,16 @@ optional arguments :
     -s , -- storage     storage dir path (default: ./server_storage)
     -sr, -- modesr      defines if the mode is stop & wait or selective repeat (default: stop & wait)
 ```
+
+### Demo
+```
+sudo mn -c
+sudo python3 ./topologia_demo_sw.py 
+sudo python3 ./topologia_demo_sr.py
+
+
+
+python3 start-server.py -v -H10.0.0.1 -p12000 -s./server_files -r
+python3 upload.py -v -H10.0.0.1 -p12000 -s./client_files -nfile_3.jpg -r
+python3 download.py -v -H10.0.0.1 -p12000 -d./client_files -nfile_1.jpg -r
+```

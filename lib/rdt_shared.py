@@ -8,10 +8,10 @@ PAYLOAD_SIZE = 4096
 HEADER_SIZE = TYPE_SIZE + SEQ_NUMBER_SIZE
 PACKET_SIZE = TYPE_SIZE + SEQ_NUMBER_SIZE + PAYLOAD_SIZE
 
-SENDER_TIMEOUT_SW = 0.03
-RECEIVER_TIMEOUT_SW = 0.03
+SENDER_TIMEOUT_SW = 0.05
+RECEIVER_TIMEOUT_SW = 0.05
 
-SENDER_TIMEOUT_SR = 0.05
+SENDER_TIMEOUT_SR = 0.10
 RECEIVER_TIMEOUT_SR = 0.05
 
 HANDSHAKE_TIMEOUT = 0.15
@@ -74,7 +74,10 @@ def send_data(seq_number, socket, address, data, verbose):
         + seq_number.to_bytes(SEQ_NUMBER_SIZE, "big")
         + data
     )
-    socket.sendto(data_packet, address)
+    try:
+        socket.sendto(data_packet, address)
+    except:
+        return
 
 
 def send_close(seq_number, socket, address, verbose):
@@ -123,7 +126,8 @@ def received_expected_data(
 ):
     if received_type == Type.DATA:
         if received_seq_number == expected_seq_number:
-            verbose_print(f"Received packet #{received_seq_number} correctly", verbose)
+            verbose_print(
+                f"Received packet #{received_seq_number} correctly", verbose)
             return True
         verbose_print(
             f"Received packet #{received_seq_number} but expected #{expected_seq_number}",
@@ -207,7 +211,8 @@ def establish_connection(
         n_tries += 1
         try:
             udp_socket.sendto(initial_packet, address_to_connect)
-            response_from_server, server_address = udp_socket.recvfrom(PACKET_SIZE)
+            response_from_server, server_address = udp_socket.recvfrom(
+                PACKET_SIZE)
             response_type, _ = get_header(response_from_server)
 
             # Si el servidor devuelve ERROR en cualquier caso imprimimos el mismo
@@ -228,7 +233,8 @@ def establish_connection(
         except timeout:
             continue
 
-    verbose_print(f"ERROR: Failed to establish connection with the server", verbose)
+    verbose_print(
+        f"ERROR: Failed to establish connection with the server", verbose)
     return Type.ERROR, "server_address"
 
 
