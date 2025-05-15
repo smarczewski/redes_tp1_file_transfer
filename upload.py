@@ -31,7 +31,7 @@ if response_type == Type.ACK:
             udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
         )
     else:
-        udp_socket.settimeout(RECEIVER_TIMEOUT_SW)
+        udp_socket.settimeout(SENDER_TIMEOUT_SW)
         verbose_print(f"Upload using STOP AND WAIT started", True)
         send_file_sw(
             udp_socket, args.src + "/" + args.name, receiver_address, args.verbose
